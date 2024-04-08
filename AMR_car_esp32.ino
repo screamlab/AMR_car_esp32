@@ -28,21 +28,21 @@
 #define PIN_SERVO 4
 
 // Motor1 P25->S0 P17->S1 P21->S2
-#define PIN_MOTOR_P1 21 // S2
-#define PIN_MOTOR_P2 17 // S1
+#define PIN_MOTOR_P1 17 // S2
+#define PIN_MOTOR_P2 21 // S1
 #define PIN_MOTOR_ENA 25
 // Motor2 P26->S5 P22->S3 P23->S4
-#define PIN_MOTOR2_P1 22  // S3
-#define PIN_MOTOR2_P2 23  // S4
+#define PIN_MOTOR2_P1 23  // S3
+#define PIN_MOTOR2_P2 22  // S4
 #define PIN_MOTOR2_ENA 26 // S5
 
 // Encoder1 motorA-c1->34 motorA-c2->35 有一個需要相反，因為左右邊
-#define PIN_ENCODER_P1 34
-#define PIN_ENCODER_P2 35
+#define PIN_ENCODER_P1 35
+#define PIN_ENCODER_P2 34
 
 // Encoder2 motorB-c1->27 motorB-c2->16
-#define PIN_ENCODER2_P1 16
-#define PIN_ENCODER2_P2 27
+#define PIN_ENCODER2_P1 27
+#define PIN_ENCODER2_P2 16
 
 #define MOTOR_COUNT 2 // Maximum number of RPM values to collect
 
