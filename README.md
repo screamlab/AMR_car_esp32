@@ -76,3 +76,29 @@
         
         - result：右邊
 
+
+
+# Reverse
+
+反向的 code 差別只有以下所列，改成反向只需將定義中的數字組合對調即可
+
+```c++
+#define PIN_MOTOR_P1 21 // S2
+#define PIN_MOTOR_P2 17 // S1
+```
+
+```c++
+#define PIN_MOTOR2_P1 22  // S3
+#define PIN_MOTOR2_P2 23  // S4
+```
+
+```c++
+#define PIN_ENCODER_P1 34
+#define PIN_ENCODER_P2 35
+```
+
+```c++
+#define PIN_ENCODER2_P1 16
+#define PIN_ENCODER2_P2 27
+```
+
