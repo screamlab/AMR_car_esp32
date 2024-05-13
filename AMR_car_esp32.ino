@@ -281,6 +281,7 @@ void TaskSerialWrite(void *pvParameters) {
             currentRPSArray.add(vels[i]);
             currentVelsBuffer[i] = vels[i];
             encoderArray.add(counts[i]);
+            serial_log(String("Motor ") + String(i+1) + ": Current RPM = " + String(vels[i] * 60.0 / (2 * PI))); // 將角速度轉換為 RPM
         }
 
         // Add the direction value
@@ -292,7 +293,7 @@ void TaskSerialWrite(void *pvParameters) {
         serializeJson(doc, jsonString);
 
         // Print the JSON string to the Serial monitor
-        serial_log(jsonString);
+        // serial_log(jsonString);
 
         vTaskDelay(SERIAL_WRITE_DELAY / portTICK_PERIOD_MS); // one tick delay (100ms) in between reads for stability
     }
