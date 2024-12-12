@@ -14,6 +14,39 @@
 #include "PIDManager.h"
 #include <PID_v1.h>
 
+// micro ros
+#include <micro_ros_arduino.h>
+#include <stdio.h>
+#include <rcl/rcl.h>
+#include <rcl/error_handling.h>
+#include <rclc/rclc.h>
+#include <rclc/executor.h>
+#include <std_msgs/msg/float32_multi_array.h>
+#include <rmw_microros/rmw_microros.h>
+std_msgs__msg__Float32MultiArray received_data;
+rcl_subscription_t subscriber;
+rclc_executor_t executor;
+rclc_support_t support;
+rcl_allocator_t allocator;
+rcl_node_t node;
+rcl_node_options_t node_ops;
+bool micro_ros_init_successful;
+#define RCCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){return false;}}
+#define RCSOFTCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){}}
+#define EXECUTE_EVERY_N_MS(MS, X)  do { \
+  static volatile int64_t init = -1; \
+  if (init == -1) { init = uxr_millis();} \
+  if (uxr_millis() - init > MS) { X; init = uxr_millis();} \
+} while (0)\
+
+enum states {
+  WAITING_AGENT,
+  AGENT_AVAILABLE,
+  AGENT_CONNECTED,
+  AGENT_DISCONNECTED
+} state;
+
+
 /*--------------------------------------------------*/
 /*--------------- Pin Definition -------------------*/
 /*--------------------------------------------------*/
@@ -129,10 +162,14 @@ void queue_init();
 void servo_init();
 
 void motor_init();
+
+// void micro_ros_init();
+bool create_entities();
 /*--------------------------------------------------*/
 /*--------------- Setup ----------------------------*/
 /*--------------------------------------------------*/
 void setup() {
+    Serial.begin(115200);
     // Serial
     delay(1000);
     // serial_init(9600,"Robot_driver_03");
@@ -151,6 +188,14 @@ void setup() {
     // Queue
     queue_init();
 
+    // micro ros
+    
+
+    // initial ros node and subscriber
+    // micro_ros_init();
+    set_microros_transports();
+    state = WAITING_AGENT;
+
     // Task                 task handle       task name         stack size
     //                      paremeter         priority          task_handle, core
     xTaskCreatePinnedToCore(TaskServo, "TaskServo", 1024,
@@ -162,11 +207,14 @@ void setup() {
     xTaskCreatePinnedToCore(TaskSerialRead, "TaskSerialRead", 2560,
                             NULL, 3, NULL, 1);
     delay(100);
-    xTaskCreatePinnedToCore(TaskSerialWrite, "TaskSerialWrite", 2560,
-                            NULL, 3, NULL, 0);
-    delay(100);
+    // xTaskCreatePinnedToCore(TaskSerialWrite, "TaskSerialWrite", 2560,
+    //                         NULL, 3, NULL, 0);
+    // delay(100);
     xTaskCreatePinnedToCore(TaskPID, "TaskPID", 1024,
                             NULL, 1, NULL, 1);
+    delay(100);
+    xTaskCreatePinnedToCore(MicroROSWheel, "MicroROSWheel", 4096,
+                            NULL, 3, NULL, 0);
     delay(100);
 }
 
@@ -180,7 +228,7 @@ void loop() {
 
 void TaskSerialRead(void *pvParameters) {
     serial_log("TaskSerialRead() running on core ");
-    serial_log(String(xPortGetCoreID()));
+    // serial_log(String(xPortGetCoreID()));
     String data;
     int pwm = 0;
     double target_vel = 0.0;
@@ -250,6 +298,41 @@ void TaskSerialRead(void *pvParameters) {
         // test_to_go();
         vTaskDelay(SERIAL_READ_DELAY / portTICK_PERIOD_MS); // one tick delay (15ms) in between reads for stability
     }
+}
+
+void MicroROSWheel(void *pvParameters){
+  serial_log("start micro ros");
+  // set_microros_transports();
+  // state = WAITING_AGENT;
+  while (true) { // 持續運行
+    // RCCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100)));
+
+    switch (state) {
+      case WAITING_AGENT:
+        EXECUTE_EVERY_N_MS(500, state = (RMW_RET_OK == rmw_uros_ping_agent(100, 1)) ? AGENT_AVAILABLE : WAITING_AGENT;);
+        break;
+      case AGENT_AVAILABLE:
+        state = (true == create_entities()) ? AGENT_CONNECTED : WAITING_AGENT;
+        if (state == WAITING_AGENT) {
+          destroy_entities();
+        };
+        break;
+      case AGENT_CONNECTED:
+        EXECUTE_EVERY_N_MS(200, state = (RMW_RET_OK == rmw_uros_ping_agent(100, 1)) ? AGENT_CONNECTED : AGENT_DISCONNECTED;);
+        if (state == AGENT_CONNECTED) {
+          rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
+        }
+        break;
+      // case AGENT_DISCONNECTED:
+      //   destroy_entities();
+      //   state = WAITING_AGENT;
+      //   break;
+      default:
+        break;
+    }
+  }
+    // vTaskDelay(10 / portTICK_PERIOD_MS); // 適當延遲，降低 CPU 負載
+  
 }
 
 void TaskSerialWrite(void *pvParameters) {
@@ -439,4 +522,55 @@ void motor_execute(uint8_t num, int16_t vel) { // 副程式  前進
         digitalWrite(motor_p2, LOW);  // control the motor's direction in clockwise
         analogWrite(motor_en, -vel);
     }
+}
+
+bool create_entities(){
+  serial_log("initial micro ros");
+  const char *node_name = "car_rear_wheel_node";
+  // set_microros_transports();
+  allocator = rcl_get_default_allocator();
+  
+  rcl_init_options_t init_options = rcl_get_zero_initialized_init_options();
+  rcl_ret_t ret = rcl_init_options_init(&init_options, rcl_get_default_allocator());
+  size_t domain_id = 1;
+  ret = rcl_init_options_set_domain_id(&init_options, domain_id);
+  RCCHECK(rclc_support_init_with_options(&support, 0, NULL, &init_options, &allocator));
+
+  // RCCHECK(rclc_support_init(&support, 0, NULL, &allocator));
+  RCCHECK(rclc_node_init_default(&node, node_name, "", &support));
+  RCCHECK(rclc_subscription_init_default(
+        &subscriber,
+        &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32MultiArray),
+        "/car_C_rear_wheel"));
+
+  RCCHECK(rclc_executor_init(&executor, &support.context, 1, &allocator));
+  RCCHECK(rclc_executor_add_subscription(
+        &executor, &subscriber, &received_data, micro_ros_callback, ON_NEW_DATA));
+  return true;
+}
+
+void micro_ros_callback(const void *msg){
+  const std_msgs__msg__Float32MultiArray *data = (const std_msgs__msg__Float32MultiArray *)msg;
+  // 確保資料大小正確
+  if (data->data.size >= MOTOR_COUNT) {
+    for (int i = 0; i < MOTOR_COUNT; i++) {
+        targetVelBuffer[i] = data->data.data[i];
+    }
+  }
+  for (int i = 0; i < MOTOR_COUNT; i++) {
+    serial_log("Received target velocity for motor ");
+    serial_log(String(i + 1) + ": " + String(targetVelBuffer[i]));
+  }
+}
+
+void destroy_entities(){
+  rmw_context_t * rmw_context = rcl_context_get_rmw_context(&support.context);
+  (void) rmw_uros_set_context_entity_destroy_session_timeout(rmw_context, 0);
+
+  rcl_subscription_fini(&subscriber, &node);
+  // rcl_timer_fini(&timer);
+  rclc_executor_fini(&executor);
+  rcl_node_fini(&node);
+  rclc_support_fini(&support);
 }
