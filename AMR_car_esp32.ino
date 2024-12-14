@@ -24,8 +24,11 @@
 #include <std_msgs/msg/float32_multi_array.h>
 #include <std_msgs/msg/int32.h>
 #include <rmw_microros/rmw_microros.h>
-std_msgs__msg__Float32MultiArray received_data;
-std_msgs__msg__Int32 msg;
+#include <micro_ros_utilities/type_utilities.h>
+#include <std_msgs/msg/int64_multi_array.h>
+
+// std_msgs__msg__Float32MultiArray msg;
+std_msgs__msg__Int64MultiArray msg;
 rcl_subscription_t subscriber;
 rclc_executor_t executor;
 rclc_support_t support;
@@ -308,27 +311,73 @@ void TaskSerialRead(void *pvParameters) {
 }
 
 void MicroROSWheel(void *pvParameters){
-    set_microros_transports();
-    allocator = rcl_get_default_allocator();
-
-    RCCHECK(rclc_support_init(&support, 0, NULL, &allocator));
-    RCCHECK(rclc_node_init_default(&node, "micro_ros_arduino_node", "", &support));
-
-    RCCHECK(rclc_subscription_init_default(
-    &subscriber,
-    &node,
-    ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
-    "micro_ros_arduino_subscriber"));
-
-    RCCHECK(rclc_executor_init(&executor, &support.context, 1, &allocator));
-    RCCHECK(rclc_executor_add_subscription(&executor, &subscriber, &msg, &subscription_callback, ON_NEW_DATA));
-
-    while(1){
-      RCCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100)));
-    }  
+  set_microros_transports();
+  state = WAITING_AGENT;
+  while(1){
+    switch (state) {
+    case WAITING_AGENT:
+      EXECUTE_EVERY_N_MS(500, state = (RMW_RET_OK == rmw_uros_ping_agent(100, 1)) ? AGENT_AVAILABLE : WAITING_AGENT;);
+      break;
+    case AGENT_AVAILABLE:
+      state = (true == create_entities()) ? AGENT_CONNECTED : WAITING_AGENT;
+      if (state == WAITING_AGENT) {
+        destroy_entities();
+      };
+      break;
+    case AGENT_CONNECTED:
+      EXECUTE_EVERY_N_MS(200, state = (RMW_RET_OK == rmw_uros_ping_agent(100, 1)) ? AGENT_CONNECTED : AGENT_DISCONNECTED;);
+      if (state == AGENT_CONNECTED) {
+        rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
+      }
+      break;
+    case AGENT_DISCONNECTED:
+      destroy_entities();
+      state = WAITING_AGENT;
+      break;
+    default:
+      break;
+  }
+  }
+  
+    
 }
 
-void subscription_callback(const void * msgin)
+bool create_entities()
+{
+  
+  allocator = rcl_get_default_allocator();
+
+  RCCHECK(rclc_support_init(&support, 0, NULL, &allocator));
+  RCCHECK(rclc_node_init_default(&node, "micro_ros_arduino_node", "", &support));
+  // 為 msg 分配內存
+
+  
+  // init_float32_multi_array();
+
+  RCCHECK(rclc_subscription_init_default(
+  &subscriber,
+  &node,
+  ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int64MultiArray),
+  "car_C_rear_wheel"));
+
+  msg.data.capacity = 10; 
+  msg.data.size = 0;
+  msg.data.data = (int64_t*) malloc(msg.data.capacity * sizeof(int64_t));
+  msg.layout.dim.capacity = 10;
+  msg.layout.dim.size = 0;
+  msg.layout.dim.data = (std_msgs__msg__MultiArrayDimension*) malloc(msg.layout.dim.capacity * sizeof(std_msgs__msg__MultiArrayDimension));
+  for(size_t i = 0; i < msg.layout.dim.capacity; i++){
+      msg.layout.dim.data[i].label.capacity = 10;
+      msg.layout.dim.data[i].label.size = 0;
+      msg.layout.dim.data[i].label.data = (char*) malloc(msg.layout.dim.data[i].label.capacity * sizeof(char));
+  }
+
+  RCCHECK(rclc_executor_init(&executor, &support.context, 1, &allocator));
+  RCCHECK(rclc_executor_add_subscription(&executor, &subscriber, &msg, &subscription_callback, ON_NEW_DATA));
+
+  return true;
+}
+void subscription_callback(const void * msg)
 {  
   Serial.println("tets");
   // const std_msgs__msg__Int32 * msg = (const std_msgs__msg__Int32 *)msgin;
@@ -526,56 +575,45 @@ void motor_execute(uint8_t num, int16_t vel) { // 副程式  前進
     }
 }
 
-bool create_entities(){
-  serial_log("initial micro ros");
-  const char *node_name = "car_rear_wheel_node";
-  // set_microros_transports();
-  allocator = rcl_get_default_allocator();
+// void init_float32_multi_array() {
+//     // 使用 micro-ROS utilities 初始化消息結構
   
-  rcl_init_options_t init_options = rcl_get_zero_initialized_init_options();
-  rcl_ret_t ret = rcl_init_options_init(&init_options, rcl_get_default_allocator());
-  size_t domain_id = 1;
-  ret = rcl_init_options_set_domain_id(&init_options, domain_id);
-  RCCHECK(rclc_support_init_with_options(&support, 0, NULL, &init_options, &allocator));
 
-  // RCCHECK(rclc_support_init(&support, 0, NULL, &allocator));
-  RCCHECK(rclc_node_init_default(&node, node_name, "", &support));
-  RCCHECK(rclc_subscription_init_default(
-        &subscriber,
-        &node,
-        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32MultiArray),
-        "/car_C_rear_wheel"));
+// }
 
-  RCCHECK(rclc_executor_init(&executor, &support.context, 1, &allocator));
-  RCCHECK(rclc_executor_add_subscription(
-        &executor, &subscriber, &received_data, micro_ros_callback, ON_NEW_DATA));
+void destroy_entities() {
+    rmw_context_t *rmw_context = rcl_context_get_rmw_context(&support.context);
+    (void)rmw_uros_set_context_entity_destroy_session_timeout(rmw_context, 0);
 
-  return true;
+    // 釋放數據內存
+    if (msg.data.data != NULL) {
+        free(msg.data.data);
+        msg.data.data = NULL;
+    }
+
+    // 銷毀消息結構
+
+    // bool success = micro_ros_utilities_destroy_message_memory(
+    //     ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32MultiArray),
+    //     &msg,
+    //     conf
+    // );
+
+    // 銷毀其他實體
+    rcl_subscription_fini(&subscriber, &node);
+    rclc_executor_fini(&executor);
+    rcl_node_fini(&node);
+    rclc_support_fini(&support);
 }
 
-void micro_ros_callback(const void *msg){
-  targetVelBuffer[0] = 20.0;
-  targetVelBuffer[1] = 20.0;
-  // const std_msgs__msg__Float32MultiArray *data = (const std_msgs__msg__Float32MultiArray *)msg;
-  // // 確保資料大小正確
-  // if (data->data.size >= MOTOR_COUNT) {
-  //   for (int i = 0; i < MOTOR_COUNT; i++) {
-  //       targetVelBuffer[i] = data->data.data[i];
-  //   }
-  // }
-  // for (int i = 0; i < MOTOR_COUNT; i++) {
-  //   serial_log("Received target velocity for motor ");
-  //   serial_log(String(i + 1) + ": " + String(targetVelBuffer[i]));
-  // }
-}
 
-void destroy_entities(){
-  rmw_context_t * rmw_context = rcl_context_get_rmw_context(&support.context);
-  (void) rmw_uros_set_context_entity_destroy_session_timeout(rmw_context, 0);
+// void destroy_entities(){
+//   rmw_context_t * rmw_context = rcl_context_get_rmw_context(&support.context);
+//   (void) rmw_uros_set_context_entity_destroy_session_timeout(rmw_context, 0);
 
-  rcl_subscription_fini(&subscriber, &node);
-  // rcl_timer_fini(&timer);
-  rclc_executor_fini(&executor);
-  rcl_node_fini(&node);
-  rclc_support_fini(&support);
-}
+//   rcl_subscription_fini(&subscriber, &node);
+//   // rcl_timer_fini(&timer);
+//   rclc_executor_fini(&executor);
+//   rcl_node_fini(&node);
+//   rclc_support_fini(&support);
+// }
