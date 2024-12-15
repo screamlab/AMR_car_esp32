@@ -181,7 +181,7 @@ bool create_entities();
 /*--------------- Setup ----------------------------*/
 /*--------------------------------------------------*/
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(921600);
     // Serial
     delay(1000);
     // serial_init(9600,"Robot_driver_03");
@@ -209,9 +209,9 @@ void setup() {
 
     // Task                 task handle       task name         stack size
     //                      paremeter         priority          task_handle, core
-    xTaskCreatePinnedToCore(TaskServo, "TaskServo", 1024,
-                            NULL, 1, NULL, 0);
-    delay(100);
+    // xTaskCreatePinnedToCore(TaskServo, "TaskServo", 1024,
+    //                         NULL, 1, NULL, 0);
+    // delay(100);
     // xTaskCreatePinnedToCore(TaskTestPID, "TaskTestPID", 1024,
     //                         NULL, 2, NULL, 1);
     // delay(100);
@@ -222,10 +222,10 @@ void setup() {
                             NULL, 3, NULL, 0);
     delay(100);
     xTaskCreatePinnedToCore(TaskPID, "TaskPID", 1024,
-                            NULL, 1, NULL, 1);
+                            NULL, 1, NULL, 0);
     delay(100);
     xTaskCreatePinnedToCore(MicroROSWheel, "MicroROSWheel", 4096,
-                            NULL, 3, NULL, 0);
+                            NULL, 1, NULL, 1);
     delay(100);
 }
 
@@ -238,7 +238,7 @@ void loop() {
 /*--------------------------------------------------*/
 
 void TaskSerialRead(void *pvParameters) {
-    serial_log("TaskSerialRead() running on core ");
+    // serial_log("TaskSerialRead() running on core ");
     String data;
     StaticJsonDocument<200> doc;
 
@@ -247,9 +247,9 @@ void TaskSerialRead(void *pvParameters) {
         if (data != "") {
             DeserializationError error = deserializeJson(doc, data);
             if (error) {
-                serial_log("deserializeJson() failed: ");
-                serial_log("Received data: ");
-                serial_log(data);
+                // serial_log("deserializeJson() failed: ");
+                // serial_log("Received data: ");
+                // serial_log(data);
                 continue;
             }
             
@@ -257,7 +257,7 @@ void TaskSerialRead(void *pvParameters) {
             // 檢查 JSON 中是否有 "command" 並且值為 "restart"
             if (doc.containsKey("command") && doc["command"] == "restart") {
                 // digitalWrite(LED_PIN, LOW);
-                serial_log("Restart command received. Restarting ESP32...");
+                // serial_log("Restart command received. Restarting ESP32...");
                 delay(1000); // 給系統一秒時間處理剩餘工作
                 ESP.restart(); // 軟體重啟 ESP32
             }
@@ -302,7 +302,7 @@ void MicroROSWheel(void *pvParameters){
       case AGENT_CONNECTED:
         EXECUTE_EVERY_N_MS(200, state = (RMW_RET_OK == rmw_uros_ping_agent(100, 1)) ? AGENT_CONNECTED : AGENT_DISCONNECTED;);
         if (state == AGENT_CONNECTED) {
-          rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
+          rclc_executor_spin_some(&executor, RCL_MS_TO_NS(10));
         }
         break;
       case AGENT_DISCONNECTED:
@@ -312,7 +312,6 @@ void MicroROSWheel(void *pvParameters){
       default:
         break;
     }
-    vTaskDelay(pdMS_TO_TICKS(100));
   }
   
     
@@ -362,8 +361,8 @@ void subscription_callback(const void * msgin)
 }
 
 void TaskSerialWrite(void *pvParameters) {
-    serial_log("TaskSerialWrite() running on core ");
-    serial_log(String(xPortGetCoreID()));
+    // serial_log("TaskSerialWrite() running on core ");
+    // serial_log(String(xPortGetCoreID()));
 
     //TODO refactor init_encoder to other function
     // use pin 19 and 18 for the first encoder
@@ -446,7 +445,7 @@ void TaskTestPID(void *pvParameters) {
 }
 
 void TaskPID(void *pvParameters) {
-    serial_log("TaskPID() running on core ");
+    // serial_log("TaskPID() running on core ");
     serial_log(String(xPortGetCoreID()));
     const TickType_t xDelay = pdMS_TO_TICKS(PID_DELAY);
     static double outputs_buff[MOTOR_COUNT];
@@ -511,7 +510,7 @@ void motor_init() {
         currentVelsBuffer[i] = 0.0;
     }
 
-    serial_log("Motor pin setup");
+    // serial_log("Motor pin setup");
 }
 
 void queue_init() {
