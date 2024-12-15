@@ -44,6 +44,7 @@ bool micro_ros_init_successful;
   if (uxr_millis() - init > MS) { X; init = uxr_millis();} \
 } while (0)\
 
+
 void error_loop(){
   while(1){
     delay(100);
@@ -214,8 +215,8 @@ void setup() {
     // xTaskCreatePinnedToCore(TaskTestPID, "TaskTestPID", 1024,
     //                         NULL, 2, NULL, 1);
     // delay(100);
-    // xTaskCreatePinnedToCore(TaskSerialRead, "TaskSerialRead", 2560,
-    //                         NULL, 3, NULL, 1);
+    // xTaskCreatePinnedToCore(TaskSerialRead, "TaskSerialRead", 1024,
+    //                         NULL, 4, NULL, 1);
     // delay(100);
     xTaskCreatePinnedToCore(TaskSerialWrite, "TaskSerialWrite", 2560,
                             NULL, 3, NULL, 0);
@@ -238,105 +239,80 @@ void loop() {
 
 void TaskSerialRead(void *pvParameters) {
     serial_log("TaskSerialRead() running on core ");
-    // serial_log(String(xPortGetCoreID()));
     String data;
-    int pwm = 0;
-    double target_vel = 0.0;
-    int direction = 0;
-    int embeded_power = 0;
-    int embeded_dir = 90;
     StaticJsonDocument<200> doc;
 
     for (;;) {
-
-        data = serial_read();
+        data = serial_read(); // 從串口接收資料
         if (data != "") {
-            // serial_log(data);
             DeserializationError error = deserializeJson(doc, data);
             if (error) {
                 serial_log("deserializeJson() failed: ");
-                serial_log(error.c_str());
-                serial_log("receive data :");
+                serial_log("Received data: ");
                 serial_log(data);
                 continue;
             }
-            // Extract the target vel array
-            JsonArray targetVelArray = doc["target_vel"].as<JsonArray>();
+            
 
-            // Iterate over the target vel array
-            uint8_t motor_i = 0;
-            for (const auto &value: targetVelArray) {
-                float vel = value.as<float>();
-
-                // Add the vel value to the buffer
-                if (motor_i < MOTOR_COUNT) {
-
-                    targetVelBuffer[motor_i] = vel;
-                    motor_i++;
-                }
+            // 檢查 JSON 中是否有 "command" 並且值為 "restart"
+            if (doc.containsKey("command") && doc["command"] == "restart") {
+                // digitalWrite(LED_PIN, LOW);
+                serial_log("Restart command received. Restarting ESP32...");
+                delay(1000); // 給系統一秒時間處理剩餘工作
+                ESP.restart(); // 軟體重啟 ESP32
             }
 
-            // pwm = doc.containsKey("pwm") ? doc["pwm"] : 0;
-            direction = doc.containsKey("direction") ? doc["direction"] : 0;
-            const char *action = doc.containsKey("action") ? doc["action"].as<const char *>() : "";
-
-            if (doc.containsKey("direction")) {
-                // do something with direction
-                embeded_dir = direction;
-                servo_direction = direction;
-                xQueueSend(servo_queue, &direction, QUEUE_TIMEOUT);
-            }
-
-            if (strcmp(action, "turn_left") == 0) {
-                // Perform actions for "turn_left"
-                // ...
-                embeded_dir -= 10;
-                embeded_dir = constrain(embeded_dir, SERVO_MIN, SERVO_MAX);
-                xQueueSend(servo_queue, &embeded_dir, QUEUE_TIMEOUT);
-            } else if (strcmp(action, "turn_right") == 0) {
-                // Perform actions for "turn_right"
-                // ...
-                embeded_dir += 10;
-                embeded_dir = constrain(embeded_dir, SERVO_MIN, SERVO_MAX);
-                xQueueSend(servo_queue, &embeded_dir, QUEUE_TIMEOUT);
-            } else {
-                // Handle unknown value of "action"
-            }
+            // 如果 JSON 有 "target_vel"，則解析並存入 targetVelBuffer
+            // if (doc.containsKey("target_vel")) {
+            //     JsonArray targetVelArray = doc["target_vel"].as<JsonArray>();
+            //     uint8_t motor_i = 0;
+            //     for (const auto &value : targetVelArray) {
+            //         float vel = value.as<float>();
+            //         if (motor_i < MOTOR_COUNT) {
+            //             targetVelBuffer[motor_i] = vel;
+            //             motor_i++;
+            //         }
+            //     }
+            // }
         }
 
-        // backgrond routine
-        // test_to_go();
-        vTaskDelay(SERIAL_READ_DELAY / portTICK_PERIOD_MS); // one tick delay (15ms) in between reads for stability
+        // 背景例行處理
+        vTaskDelay(SERIAL_READ_DELAY / portTICK_PERIOD_MS); // 延遲穩定性
     }
 }
+
 
 void MicroROSWheel(void *pvParameters){
   set_microros_transports();
   state = WAITING_AGENT;
   while(1){
     switch (state) {
-    case WAITING_AGENT:
-      EXECUTE_EVERY_N_MS(500, state = (RMW_RET_OK == rmw_uros_ping_agent(100, 1)) ? AGENT_AVAILABLE : WAITING_AGENT;);
-      break;
-    case AGENT_AVAILABLE:
-      state = (true == create_entities()) ? AGENT_CONNECTED : WAITING_AGENT;
-      if (state == WAITING_AGENT) {
+      case WAITING_AGENT:
+        EXECUTE_EVERY_N_MS(500, state = (RMW_RET_OK == rmw_uros_ping_agent(100, 1)) ? AGENT_AVAILABLE : WAITING_AGENT;);
+        // if (state == WAITING_AGENT){
+        //   ESP.restart();
+        // }
+        break;
+      case AGENT_AVAILABLE:
+        state = (true == create_entities()) ? AGENT_CONNECTED : WAITING_AGENT;
+        if (state == WAITING_AGENT) {
+          destroy_entities();
+        };
+        break;
+      case AGENT_CONNECTED:
+        EXECUTE_EVERY_N_MS(200, state = (RMW_RET_OK == rmw_uros_ping_agent(100, 1)) ? AGENT_CONNECTED : AGENT_DISCONNECTED;);
+        if (state == AGENT_CONNECTED) {
+          rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
+        }
+        break;
+      case AGENT_DISCONNECTED:
         destroy_entities();
-      };
-      break;
-    case AGENT_CONNECTED:
-      EXECUTE_EVERY_N_MS(200, state = (RMW_RET_OK == rmw_uros_ping_agent(100, 1)) ? AGENT_CONNECTED : AGENT_DISCONNECTED;);
-      if (state == AGENT_CONNECTED) {
-        rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
-      }
-      break;
-    case AGENT_DISCONNECTED:
-      destroy_entities();
-      state = WAITING_AGENT;
-      break;
-    default:
-      break;
-  }
+        state = WAITING_AGENT;
+        break;
+      default:
+        break;
+    }
+    vTaskDelay(pdMS_TO_TICKS(100));
   }
   
     
@@ -347,12 +323,15 @@ bool create_entities()
   
   allocator = rcl_get_default_allocator();
 
-  RCCHECK(rclc_support_init(&support, 0, NULL, &allocator));
+  rcl_init_options_t init_options = rcl_get_zero_initialized_init_options();
+  rcl_init_options_init(&init_options, allocator);
+  rcl_init_options_set_domain_id(&init_options, 1);
+  RCCHECK(rclc_support_init_with_options(&support, 0, NULL, &init_options, &allocator));
+
+  // RCCHECK(rclc_support_init(&support, 0, NULL, &allocator));
   RCCHECK(rclc_node_init_default(&node, "micro_ros_arduino_node", "", &support));
-  // 為 msg 分配內存
 
   
-  // init_float32_multi_array();
 
   RCCHECK(rclc_subscription_init_default(
   &subscriber,
@@ -379,7 +358,7 @@ bool create_entities()
 }
 void subscription_callback(const void * msg)
 {  
-  Serial.println("tets");
+  Serial.println("dsadjsalkdjsaljdlsaj");
   // const std_msgs__msg__Int32 * msg = (const std_msgs__msg__Int32 *)msgin;
   targetVelBuffer[0] = 20.0;
   targetVelBuffer[1] = 20.0;
@@ -415,7 +394,7 @@ void TaskSerialWrite(void *pvParameters) {
             currentRPSArray.add(vels[i]);
             currentVelsBuffer[i] = vels[i];
             encoderArray.add(counts[i]);
-            serial_log(String("Motor ") + String(i+1) + ": Current RPM = " + String(vels[i] * 60.0 / (2 * PI))); // 將角速度轉換為 RPM
+            // serial_log(String("Motor ") + String(i+1) + ": Current RPM = " + String(vels[i] * 60.0 / (2 * PI))); // 將角速度轉換為 RPM
         }
 
         // Add the direction value
@@ -582,28 +561,34 @@ void motor_execute(uint8_t num, int16_t vel) { // 副程式  前進
 // }
 
 void destroy_entities() {
+    targetVelBuffer[0] = 0.0;
+    targetVelBuffer[1] = 0.0;
     rmw_context_t *rmw_context = rcl_context_get_rmw_context(&support.context);
     (void)rmw_uros_set_context_entity_destroy_session_timeout(rmw_context, 0);
-
-    // 釋放數據內存
-    if (msg.data.data != NULL) {
-        free(msg.data.data);
-        msg.data.data = NULL;
-    }
-
-    // 銷毀消息結構
-
-    // bool success = micro_ros_utilities_destroy_message_memory(
-    //     ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32MultiArray),
-    //     &msg,
-    //     conf
-    // );
-
     // 銷毀其他實體
     rcl_subscription_fini(&subscriber, &node);
     rclc_executor_fini(&executor);
     rcl_node_fini(&node);
     rclc_support_fini(&support);
+
+    // 手動釋放動態分配的內存
+    if (msg.data.data != NULL) {
+        free(msg.data.data);
+        msg.data.data = NULL;  // 避免懸空指針
+    }
+
+    if (msg.layout.dim.data != NULL) {
+        // 如果有嵌套的分配，先釋放內部
+        for (size_t i = 0; i < msg.layout.dim.capacity; i++) {
+            if (msg.layout.dim.data[i].label.data != NULL) {
+                free(msg.layout.dim.data[i].label.data);
+                msg.layout.dim.data[i].label.data = NULL;
+            }
+        }
+        // 再釋放外層的指針
+        free(msg.layout.dim.data);
+        msg.layout.dim.data = NULL;
+    }
 }
 
 
