@@ -27,8 +27,8 @@
 #include <micro_ros_utilities/type_utilities.h>
 #include <std_msgs/msg/int64_multi_array.h>
 
-// std_msgs__msg__Float32MultiArray msg;
-std_msgs__msg__Int64MultiArray msg;
+std_msgs__msg__Float32MultiArray msg;
+// std_msgs__msg__Int64MultiArray msg;
 rcl_subscription_t subscriber;
 rclc_executor_t executor;
 rclc_support_t support;
@@ -328,20 +328,17 @@ bool create_entities()
   rcl_init_options_set_domain_id(&init_options, 1);
   RCCHECK(rclc_support_init_with_options(&support, 0, NULL, &init_options, &allocator));
 
-  // RCCHECK(rclc_support_init(&support, 0, NULL, &allocator));
   RCCHECK(rclc_node_init_default(&node, "micro_ros_arduino_node", "", &support));
-
-  
 
   RCCHECK(rclc_subscription_init_default(
   &subscriber,
   &node,
-  ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int64MultiArray),
+  ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32MultiArray),
   "car_C_rear_wheel"));
 
   msg.data.capacity = 10; 
   msg.data.size = 0;
-  msg.data.data = (int64_t*) malloc(msg.data.capacity * sizeof(int64_t));
+  msg.data.data = (float*) malloc(msg.data.capacity * sizeof(float));
   msg.layout.dim.capacity = 10;
   msg.layout.dim.size = 0;
   msg.layout.dim.data = (std_msgs__msg__MultiArrayDimension*) malloc(msg.layout.dim.capacity * sizeof(std_msgs__msg__MultiArrayDimension));
@@ -356,12 +353,11 @@ bool create_entities()
 
   return true;
 }
-void subscription_callback(const void * msg)
+void subscription_callback(const void * msgin)
 {  
-  Serial.println("dsadjsalkdjsaljdlsaj");
-  // const std_msgs__msg__Int32 * msg = (const std_msgs__msg__Int32 *)msgin;
-  targetVelBuffer[0] = 20.0;
-  targetVelBuffer[1] = 20.0;
+  const std_msgs__msg__Float32MultiArray * msg = (const std_msgs__msg__Float32MultiArray *)msgin;
+  targetVelBuffer[0] = msg->data.data[0];
+  targetVelBuffer[1] = msg->data.data[1];
   // digitalWrite(LED_PIN, (msg->data == 0) ? LOW : HIGH);  
 }
 
@@ -553,18 +549,12 @@ void motor_execute(uint8_t num, int16_t vel) { // 副程式  前進
         analogWrite(motor_en, -vel);
     }
 }
-
-// void init_float32_multi_array() {
-//     // 使用 micro-ROS utilities 初始化消息結構
-  
-
-// }
-
 void destroy_entities() {
     targetVelBuffer[0] = 0.0;
     targetVelBuffer[1] = 0.0;
     rmw_context_t *rmw_context = rcl_context_get_rmw_context(&support.context);
     (void)rmw_uros_set_context_entity_destroy_session_timeout(rmw_context, 0);
+
     // 銷毀其他實體
     rcl_subscription_fini(&subscriber, &node);
     rclc_executor_fini(&executor);
@@ -590,15 +580,3 @@ void destroy_entities() {
         msg.layout.dim.data = NULL;
     }
 }
-
-
-// void destroy_entities(){
-//   rmw_context_t * rmw_context = rcl_context_get_rmw_context(&support.context);
-//   (void) rmw_uros_set_context_entity_destroy_session_timeout(rmw_context, 0);
-
-//   rcl_subscription_fini(&subscriber, &node);
-//   // rcl_timer_fini(&timer);
-//   rclc_executor_fini(&executor);
-//   rcl_node_fini(&node);
-//   rclc_support_fini(&support);
-// }
