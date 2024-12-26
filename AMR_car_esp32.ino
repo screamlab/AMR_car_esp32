@@ -1,18 +1,19 @@
 /*--------------------------------------------------*/
 /*---------------------- Include Library -----------*/
 /*--------------------------------------------------*/
-#include <ESP32Encoder.h>
-#include <InterruptEncoder.h>
 #include <ArduinoJson.h>
+#include <ESP32Encoder.h>
 #include <ESP32PWM.h>
 #include <ESP32Servo.h>
+#include <InterruptEncoder.h>
 // #include "serial.h"
 #define USE_SOFTWARE_SERIAL
+
+#include <PID_v1.h>
 
 #include "CarSerial.h"
 #include "EncoderManager.h"
 #include "PIDManager.h"
-#include <PID_v1.h>
 
 // #include "params.hpp"
 #include "micro_ros.hpp"
@@ -80,7 +81,6 @@ void setup() {
     // Motor
     motor_init();
 
-
     // Queue
     queue_init();
 
@@ -122,7 +122,7 @@ void TaskSerialRead(void *pvParameters) {
     StaticJsonDocument<200> doc;
 
     for (;;) {
-        data = serial_read(); // 從串口接收資料
+        data = serial_read();  // 從串口接收資料
         if (data != "") {
             DeserializationError error = deserializeJson(doc, data);
             if (error) {
@@ -131,14 +131,13 @@ void TaskSerialRead(void *pvParameters) {
                 // serial_log(data);
                 continue;
             }
-            
 
             // 檢查 JSON 中是否有 "command" 並且值為 "restart"
             if (doc.containsKey("command") && doc["command"] == "restart") {
                 // digitalWrite(LED_PIN, LOW);
                 // serial_log("Restart command received. Restarting ESP32...");
-                delay(1000); // 給系統一秒時間處理剩餘工作
-                ESP.restart(); // 軟體重啟 ESP32
+                delay(1000);    // 給系統一秒時間處理剩餘工作
+                ESP.restart();  // 軟體重啟 ESP32
             }
 
             // 如果 JSON 有 "target_vel"，則解析並存入 targetVelBuffer
@@ -156,7 +155,7 @@ void TaskSerialRead(void *pvParameters) {
         }
 
         // 背景例行處理
-        vTaskDelay(SERIAL_READ_DELAY / portTICK_PERIOD_MS); // 延遲穩定性
+        vTaskDelay(SERIAL_READ_DELAY / portTICK_PERIOD_MS);  // 延遲穩定性
     }
 }
 
@@ -164,18 +163,18 @@ void TaskSerialWrite(void *pvParameters) {
     // serial_log("TaskSerialWrite() running on core ");
     // serial_log(String(xPortGetCoreID()));
 
-    //TODO refactor init_encoder to other function
-    // use pin 19 and 18 for the first encoder
+    // TODO refactor init_encoder to other function
+    //  use pin 19 and 18 for the first encoder
     uint8_t pins[MOTOR_COUNT][2] = {
-            {PIN_ENCODER_P1,  PIN_ENCODER_P2},  // Encoder 1 pins
-            {PIN_ENCODER2_P1, PIN_ENCODER2_P2} // Encoder 2 pins
+        {PIN_ENCODER_P1, PIN_ENCODER_P2},   // Encoder 1 pins
+        {PIN_ENCODER2_P1, PIN_ENCODER2_P2}  // Encoder 2 pins
     };
 
     EncoderManager encoderManager(pins, MOTOR_COUNT, ENCODER_RESOLUTIONS);
 
     for (;;) {
         // Create a JSON document
-        DynamicJsonDocument doc(200); // Adjust the size based on your data size
+        DynamicJsonDocument doc(200);  // Adjust the size based on your data size
 
         int *counts = encoderManager.getCounts();
         float *vels = encoderManager.getAngularVel();
@@ -203,7 +202,7 @@ void TaskSerialWrite(void *pvParameters) {
         // Print the JSON string to the Serial monitor
         // serial_log(jsonString);
 
-        vTaskDelay(SERIAL_WRITE_DELAY / portTICK_PERIOD_MS); // one tick delay (100ms) in between reads for stability
+        vTaskDelay(SERIAL_WRITE_DELAY / portTICK_PERIOD_MS);  // one tick delay (100ms) in between reads for stability
     }
 }
 
@@ -211,7 +210,7 @@ void TaskServo(void *pvParameters) {
     serial_log("TaskServo() running on core ");
     serial_log(String(xPortGetCoreID()));
     int32_t direction = 0;
-    servo_init(); // myservo.attach(PIN_SERVO,SERVO_MIN,SERVO_MAX);
+    servo_init();  // myservo.attach(PIN_SERVO,SERVO_MIN,SERVO_MAX);
     for (;;) {
         // read servo angle from queue
         if (xQueueReceive(servo_queue, &direction, QUEUE_TIMEOUT) == pdTRUE) {
@@ -253,7 +252,6 @@ void TaskPID(void *pvParameters) {
         pid_manager.setSetpoints(targetVelBuffer);
         double *outputs_buff = pid_manager.compute(currentVelsBuffer);
         for (int i = 0; i < MOTOR_COUNT; i++) {
-
             if (targetVelBuffer[i] >= 0) {
                 motor_execute(i + 1, outputs_buff[i]);
             } else {
@@ -282,7 +280,7 @@ void TaskPID(void *pvParameters) {
 /*--------------------------------------------------*/
 
 void servo_init() {
-    myservo.attach(PIN_SERVO); // 設置舵機控制腳位
+    myservo.attach(PIN_SERVO);  // 設置舵機控制腳位
     if (myservo.attached()) {
         serial_log("Servo is attached");
         myservo.write(SERVO_INIT);
@@ -324,7 +322,7 @@ void queue_init() {
     }
 }
 
-void motor_execute(uint8_t num, int16_t vel) { // 副程式  前進
+void motor_execute(uint8_t num, int16_t vel) {  // 副程式  前進
     uint8_t motor_p1, motor_p2, motor_en;
     if (num == 1) {
         motor_p1 = PIN_MOTOR_P1;
@@ -339,12 +337,12 @@ void motor_execute(uint8_t num, int16_t vel) { // 副程式  前進
     }
 
     if (vel > 0) {
-        digitalWrite(motor_p1, LOW);  // control the motor's direction in clockwise
-        digitalWrite(motor_p2, HIGH); // control the motor's direction in clockwise
+        digitalWrite(motor_p1, LOW);   // control the motor's direction in clockwise
+        digitalWrite(motor_p2, HIGH);  // control the motor's direction in clockwise
         analogWrite(motor_en, vel);
     } else {
-        digitalWrite(motor_p1, HIGH); // control the motor's direction in clockwise
-        digitalWrite(motor_p2, LOW);  // control the motor's direction in clockwise
+        digitalWrite(motor_p1, HIGH);  // control the motor's direction in clockwise
+        digitalWrite(motor_p2, LOW);   // control the motor's direction in clockwise
         analogWrite(motor_en, -vel);
     }
 }

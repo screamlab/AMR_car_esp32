@@ -21,7 +21,6 @@ void serial_init(unsigned long baudRate, const String &name) {
     serial_log("serial_init hardware");
 
 #endif
-
 }
 
 void serial_log(const String &s) {

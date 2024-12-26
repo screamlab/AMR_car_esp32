@@ -1,5 +1,6 @@
-#include <Arduino.h> // Include Arduino core library
 #include "EncoderManager.h"
+
+#include <Arduino.h>  // Include Arduino core library
 
 EncoderManager::EncoderManager(uint8_t pins[][2], const uint8_t encoderCount, const uint16_t encoder_resolutions[]) {
     this->encoderCount = encoderCount;
@@ -14,7 +15,7 @@ EncoderManager::EncoderManager(uint8_t pins[][2], const uint8_t encoderCount, co
         encoders[i].setCount(0);
         prevCounts[i] = 0;
     }
-    prevTime = millis(); // millis() is now recognized
+    prevTime = millis();  // millis() is now recognized
 }
 
 int *EncoderManager::getCounts() {
@@ -30,7 +31,7 @@ int *EncoderManager::getCounts() {
 float *EncoderManager::getAngularVel() {
     static float vels[MAX_ENCODERS];
 
-    unsigned long currentTime = millis(); // millis() is now recognized
+    unsigned long currentTime = millis();  // millis() is now recognized
     float deltaTime = (currentTime - prevTime) / 1000.0;
     int *counts = getCounts();
     for (int i = 0; i < this->encoderCount; i++) {
