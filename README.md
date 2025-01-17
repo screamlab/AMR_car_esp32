@@ -1,91 +1,52 @@
-# PCar Model A
-- version
-- TwoWheelAndServoCar_with_HC06
+# AMR Car ESP32
+
+This project is an implementation of an Autonomous Mobile Robot (AMR) using an ESP32 microcontroller. The robot is equipped with motor control, PID management, encoder feedback, and micro-ROS communication.
 
 
 
-# Hardware 
-- 後輪兩輪驅動
-- 前輪 servo 帶動轉向
-- HC06 (optional)
+## Setup
+
+1. Install the required libraries:
+   - PID
+   - ~~ArduinoJson~~
+   - ESP32Servo
+   - ESP32Encoder
+   - EspSoftwareSerial
+   - Adafruit PWM Servo Driver Library
+2. Configure the pins:
+   - Define the pins in [params.hpp](vscode-file://vscode-app/usr/share/code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html) as per your hardware setup.
+3. **Reverse Mode**:
+   - To enable reverse mode, uncomment the `#define REVERSE_PINS` line in `params.hpp`.
 
 
 
-# Testcase
-- [ ]  測試接收資料格式
-  
-    ```json
-    {
-    	"target_vel": [10,10], // -35~35
-        "direction": 90,       // 依照機構有所不同
-    	"action": "turn_left"  // turn_left,turn_right
-    }
-    ```
-    
-- [ ]  測試輸出資料格式
-  
-    ```json
-    {
-      "vels": [
-        10.69518757,
-        9.8039217
-      ],
-      "encoders": [
-        6269,
-        5563
-      ],
-      "direction": 112
-    }
-    ```
-    
-- [ ]  測試輪子前進後退 encoder 讀取數值是否正確
-    - 往前漸增
-    - 往後漸減
-- [ ]  測試輪子前進後退 是否正確
-    - serial input
-      
-        ```json
-        {     "target_vel": [10,10]  	}
-        ```
-        
-        - result：往前
-    - serial input
-      
-        ```json
-        {     "target_vel": [-10,-10]  	}
-        ```
-        
-        - result：往後
-- [ ]  測試前輪 servo 左右是否正確
-    - serial input
-      
-        ```json
-        {
-            "direction": 70
-        }
-        ```
-        
-        - result：左邊
-    - serial input
-      
-        ```json
-        {
-            "direction": 110
-        }
-        ```
-        
-        - result：右邊
+## Usage
+
+1. **Serial Communication**:
+   - The serial communication is handled by [CarSerial.cpp](vscode-file://vscode-app/usr/share/code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html) and [CarSerial.h](vscode-file://vscode-app/usr/share/code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html). It supports both software and hardware serial communication.
+2. **PID Management**:
+   - The PID control for the motors is managed by [PIDManager.h](vscode-file://vscode-app/usr/share/code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html).
+3. **Encoder Management**:
+   - The encoder feedback is managed by [EncoderManager.cpp](vscode-file://vscode-app/usr/share/code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html) and [EncoderManager.h](vscode-file://vscode-app/usr/share/code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html).
+4. **Micro-ROS Communication**:
+   - The micro-ROS communication is implemented in [micro_ros.cpp](vscode-file://vscode-app/usr/share/code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html) and [micro_ros.hpp](vscode-file://vscode-app/usr/share/code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html).
+5. **Tasks**:
+   - The main tasks are defined in `AMR_car_esp32.ino`:
+     - [TaskSerialRead](vscode-file://vscode-app/usr/share/code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html)
+     - [TaskSerialWrite](vscode-file://vscode-app/usr/share/code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html)
+     - [TaskTestPID](vscode-file://vscode-app/usr/share/code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html)
+     - [TaskServo](vscode-file://vscode-app/usr/share/code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html)
+     - [TaskPID](vscode-file://vscode-app/usr/share/code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html)
 
 
 
-# Reverse
+## Reverse
 
-在 `params.hpp` 有以下定義
+In `params.hpp`, there is the following definition:
 
-```c++
+```c
 #define REVERSE_PINS
 ```
 
-若需要調整為反向模式，宣告此變數
+To enable reverse mode, declare this variable. Otherwise, comment out this variable.
 
-反之，註解掉此變數即可
