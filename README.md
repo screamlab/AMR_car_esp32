@@ -4,20 +4,48 @@ This project is an implementation of an Autonomous Mobile Robot (AMR) using an E
 
 
 
-## Setup
+## ⚙️ Setup
 
-1. Install the required libraries:
-   - PID
-   - ~~ArduinoJson~~
-   - ESP32Servo
-   - ESP32Encoder
-   - EspSoftwareSerial
-   - Adafruit PWM Servo Driver Library
-   - [Micro ROS Arduino Library](https://github.com/micro-ROS/micro_ros_arduino)
-2. Configure the pins:
-   - Define the pins in [params.hpp](vscode-file://vscode-app/usr/share/code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html) as per your hardware setup.
-3. **Reverse Mode**:
-   - To enable reverse mode, uncomment the `#define REVERSE_PINS` line in `params.hpp`.
+### 📌 Install Required Libraries
+Before getting started, install the following libraries in **Arduino IDE**:
+
+| Library | Version |
+|---------|---------|
+| **PID** | `1.2.0` |
+| **ArduinoJson** | `7.3.0` |
+| **ESP32Servo** | `3.0.6` |
+| **ESP32Encoder** | `0.11.7` |
+| **EspSoftwareSerial** | `8.1.0` |
+| **Adafruit PWM Servo Driver Library** | `3.0.2` |
+
+---
+
+### 🔹 Install Micro ROS Arduino Library (Humble)
+Follow these steps to manually install **Micro ROS Arduino Library (Humble)**:
+
+1. **Download the Library**  
+   - Visit the [Micro ROS Arduino Repository](https://github.com/micro-ROS/micro_ros_arduino).  
+   - Download the latest **Humble ZIP** package.
+
+2. **Add Library to Arduino IDE**  
+   - Open **Arduino IDE**.
+   - Navigate to **Sketch → Include Library → Add .ZIP Library**.
+   - Select the downloaded `micro_ros_arduino.zip` and click **Open**.
+
+3. **Done! 🎉**  
+   - Micro ROS is now installed and ready to use in your Arduino projects.
+
+---
+
+### ⚡ Configure the Pins
+- Define the required **GPIO pins** in [`params.hpp`](vscode-file://vscode-app/usr/share/code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html) based on your hardware setup.
+
+---
+
+### 🔄 Enable Reverse Mode
+- If you need **reverse mode**, **uncomment** the following line in `params.hpp`:
+  ```cpp
+  #define REVERSE_PINS
 
 
 
