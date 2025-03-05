@@ -17,6 +17,7 @@ Before getting started, install the following libraries in **Arduino IDE**:
 | **ESP32Encoder** | `0.11.7` |
 | **EspSoftwareSerial** | `8.1.0` |
 | **Adafruit PWM Servo Driver Library** | `3.0.2` |
+| **micro_ros_arduino** | `2.0.7-humble` |
 
 ---
 
